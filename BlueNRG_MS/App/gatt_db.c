@@ -1,287 +1,216 @@
 /**
   ******************************************************************************
   * @file    App/gatt_db.c
-  * @author  SRA Application Team
-  * @brief   Functions to build GATT DB and handle GATT events
-  ******************************************************************************
-  * @attention
+  * @brief   GATT table builder + characteristic update helpers for the
+  *          Intelligent-home STM32 client.
   *
-  * Copyright (c) 2026 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
+  *          UUID assignments are FIXED — once burned they must not change
+  *          without updating the RPi-side contract (docs §12).
   ******************************************************************************
   */
 
-#include <stdio.h>
+#include <stdint.h>
 #include <string.h>
-#include <stdlib.h>
 #include "bluenrg_def.h"
-#include "gatt_db.h"
 #include "bluenrg_conf.h"
 #include "bluenrg_gatt_aci.h"
+#include "gatt_db.h"
 
-/** @brief Macro that stores Value into a buffer in Little Endian Format (2 bytes)*/
-#define HOST_TO_LE_16(buf, val)    ( ((buf)[0] =  (uint8_t) (val)    ) , \
-                                   ((buf)[1] =  (uint8_t) (val>>8) ) )
+/* UUID helper ---------------------------------------------------------------*/
+#define COPY_UUID_128(uuid_struct, b15,b14,b13,b12,b11,b10,b9,b8,b7,b6,b5,b4,b3,b2,b1,b0) \
+do { \
+    (uuid_struct)[ 0] = (b0);  (uuid_struct)[ 1] = (b1);  \
+    (uuid_struct)[ 2] = (b2);  (uuid_struct)[ 3] = (b3);  \
+    (uuid_struct)[ 4] = (b4);  (uuid_struct)[ 5] = (b5);  \
+    (uuid_struct)[ 6] = (b6);  (uuid_struct)[ 7] = (b7);  \
+    (uuid_struct)[ 8] = (b8);  (uuid_struct)[ 9] = (b9);  \
+    (uuid_struct)[10] = (b10); (uuid_struct)[11] = (b11); \
+    (uuid_struct)[12] = (b12); (uuid_struct)[13] = (b13); \
+    (uuid_struct)[14] = (b14); (uuid_struct)[15] = (b15); \
+} while (0)
 
-/** @brief Macro that stores Value into a buffer in Little Endian Format (4 bytes) */
-#define HOST_TO_LE_32(buf, val)    ( ((buf)[0] =  (uint8_t) (val)     ) , \
-                                   ((buf)[1] =  (uint8_t) (val>>8)  ) , \
-                                   ((buf)[2] =  (uint8_t) (val>>16) ) , \
-                                   ((buf)[3] =  (uint8_t) (val>>24) ) )
+/* Common base: xxxxxxxx-8E22-4541-9D4C-21EDAE82ED19 -------------------------*/
 
-#define COPY_UUID_128(uuid_struct, uuid_15, uuid_14, uuid_13, uuid_12, uuid_11, uuid_10, uuid_9, uuid_8, uuid_7, uuid_6, uuid_5, uuid_4, uuid_3, uuid_2, uuid_1, uuid_0) \
-do {\
-    uuid_struct[0] = uuid_0; uuid_struct[1] = uuid_1; uuid_struct[2] = uuid_2; uuid_struct[3] = uuid_3; \
-        uuid_struct[4] = uuid_4; uuid_struct[5] = uuid_5; uuid_struct[6] = uuid_6; uuid_struct[7] = uuid_7; \
-            uuid_struct[8] = uuid_8; uuid_struct[9] = uuid_9; uuid_struct[10] = uuid_10; uuid_struct[11] = uuid_11; \
-                uuid_struct[12] = uuid_12; uuid_struct[13] = uuid_13; uuid_struct[14] = uuid_14; uuid_struct[15] = uuid_15; \
-}while(0)
+/* Home Sensor Service ---- 1A220001-... */
+#define COPY_HOME_SENSOR_SERVICE_UUID(u)  COPY_UUID_128(u, 0x1A,0x22,0x00,0x01, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
+#define COPY_TEMPERATURE_CHAR_UUID(u)     COPY_UUID_128(u, 0x1A,0x22,0x00,0x02, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
+#define COPY_HUMIDITY_CHAR_UUID(u)        COPY_UUID_128(u, 0x1A,0x22,0x00,0x03, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
+#define COPY_ACCEL_MAG_CHAR_UUID(u)       COPY_UUID_128(u, 0x1A,0x22,0x00,0x04, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
+#define COPY_GYRO_MAG_CHAR_UUID(u)        COPY_UUID_128(u, 0x1A,0x22,0x00,0x05, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
+#define COPY_MOTION_ALERT_CHAR_UUID(u)    COPY_UUID_128(u, 0x1A,0x22,0x00,0x06, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
+#define COPY_MIC_LEVEL_CHAR_UUID(u)       COPY_UUID_128(u, 0x1A,0x22,0x00,0x07, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
+#define COPY_LOUD_ALERT_CHAR_UUID(u)      COPY_UUID_128(u, 0x1A,0x22,0x00,0x08, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
 
-/* Hardware Characteristics Service */
-#define COPY_HW_SENS_W2ST_SERVICE_UUID(uuid_struct)    COPY_UUID_128(uuid_struct,0x00,0x00,0x00,0x00,0x00,0x01,0x11,0xe1,0x9a,0xb4,0x00,0x02,0xa5,0xd5,0xc5,0x1b)
-#define COPY_ENVIRONMENTAL_W2ST_CHAR_UUID(uuid_struct) COPY_UUID_128(uuid_struct,0x00,0x00,0x00,0x00,0x00,0x01,0x11,0xe1,0xac,0x36,0x00,0x02,0xa5,0xd5,0xc5,0x1b)
-#define COPY_ACC_GYRO_MAG_W2ST_CHAR_UUID(uuid_struct)  COPY_UUID_128(uuid_struct,0x00,0xE0,0x00,0x00,0x00,0x01,0x11,0xe1,0xac,0x36,0x00,0x02,0xa5,0xd5,0xc5,0x1b)
-/* Software Characteristics Service */
-#define COPY_SW_SENS_W2ST_SERVICE_UUID(uuid_struct)    COPY_UUID_128(uuid_struct,0x00,0x00,0x00,0x00,0x00,0x02,0x11,0xe1,0x9a,0xb4,0x00,0x02,0xa5,0xd5,0xc5,0x1b)
-#define COPY_QUATERNIONS_W2ST_CHAR_UUID(uuid_struct)   COPY_UUID_128(uuid_struct,0x00,0x00,0x01,0x00,0x00,0x01,0x11,0xe1,0xac,0x36,0x00,0x02,0xa5,0xd5,0xc5,0x1b)
+/* Home Control Service ---- 1A22F001-... */
+#define COPY_HOME_CONTROL_SERVICE_UUID(u) COPY_UUID_128(u, 0x1A,0x22,0xF0,0x01, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
+#define COPY_LED1_STATE_CHAR_UUID(u)      COPY_UUID_128(u, 0x1A,0x22,0xF0,0x02, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
+#define COPY_CONTROL_FLAG_CHAR_UUID(u)    COPY_UUID_128(u, 0x1A,0x22,0xF0,0x03, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
 
-uint16_t HWServW2STHandle, EnvironmentalCharHandle, AccGyroMagCharHandle;
-uint16_t SWServW2STHandle, QuaternionsCharHandle;
+/* Handles ------------------------------------------------------------------*/
+static uint16_t home_sensor_service_handle;
+static uint16_t temperature_char_handle;
+static uint16_t humidity_char_handle;
+static uint16_t accel_mag_char_handle;
+static uint16_t gyro_mag_char_handle;
+static uint16_t motion_alert_char_handle;
+static uint16_t mic_level_char_handle;
+static uint16_t loud_alert_char_handle;
 
-/* UUIDS */
-Service_UUID_t service_uuid;
-Char_UUID_t char_uuid;
+static uint16_t home_control_service_handle;
+static uint16_t led1_state_char_handle;
+static uint16_t control_flag_char_handle;
 
-extern AxesRaw_t x_axes;
-extern AxesRaw_t g_axes;
-extern AxesRaw_t m_axes;
+/* Externals referenced from sensor.c -----------------------------------------*/
+extern __IO uint16_t connection_handle;
 
-extern uint16_t connection_handle;
-extern uint32_t start_time;
-
-/**
- * @brief  Add the 'HW' service (and the Environmental and AccGyr characteristics).
- * @param  None
- * @retval tBleStatus Status
- */
-tBleStatus Add_HWServW2ST_Service(void)
+/* Internal helpers ----------------------------------------------------------*/
+static tBleStatus add_char(uint16_t service, const uint8_t uuid[16],
+                           uint8_t value_len, uint8_t props, uint8_t evt_mask,
+                           uint16_t *out_handle)
 {
-  tBleStatus ret;
-  uint8_t uuid[16];
-
-  /* Add_HWServW2ST_Service */
-  COPY_HW_SENS_W2ST_SERVICE_UUID(uuid);
-  BLUENRG_memcpy(&service_uuid.Service_UUID_128, uuid, 16);
-  ret = aci_gatt_add_serv(UUID_TYPE_128, service_uuid.Service_UUID_128, PRIMARY_SERVICE,
-                          1+3*5, &HWServW2STHandle);
-  if (ret != BLE_STATUS_SUCCESS)
-    return BLE_STATUS_ERROR;
-
-  /* Fill the Environmental BLE Characteristc */
-  COPY_ENVIRONMENTAL_W2ST_CHAR_UUID(uuid);
-  uuid[14] |= 0x04; /* One Temperature value*/
-  uuid[14] |= 0x10; /* Pressure value*/
-  BLUENRG_memcpy(&char_uuid.Char_UUID_128, uuid, 16);
-  ret =  aci_gatt_add_char(HWServW2STHandle, UUID_TYPE_128, char_uuid.Char_UUID_128,
-                           2+2+4,
-                           CHAR_PROP_NOTIFY|CHAR_PROP_READ,
-                           ATTR_PERMISSION_NONE,
-                           GATT_NOTIFY_READ_REQ_AND_WAIT_FOR_APPL_RESP,
-                           16, 0, &EnvironmentalCharHandle);
-  if (ret != BLE_STATUS_SUCCESS)
-    return BLE_STATUS_ERROR;
-
-  /* Fill the AccGyroMag BLE Characteristc */
-  COPY_ACC_GYRO_MAG_W2ST_CHAR_UUID(uuid);
-  BLUENRG_memcpy(&char_uuid.Char_UUID_128, uuid, 16);
-  ret =  aci_gatt_add_char(HWServW2STHandle, UUID_TYPE_128, char_uuid.Char_UUID_128,
-                           2+3*3*2,
-                           CHAR_PROP_NOTIFY,
-                           ATTR_PERMISSION_NONE,
-                           GATT_NOTIFY_READ_REQ_AND_WAIT_FOR_APPL_RESP,
-                           16, 0, &AccGyroMagCharHandle);
-  if (ret != BLE_STATUS_SUCCESS)
-    return BLE_STATUS_ERROR;
-
-  return BLE_STATUS_SUCCESS;
+    Char_UUID_t c;
+    memcpy(c.Char_UUID_128, uuid, 16);
+    return aci_gatt_add_char(service, UUID_TYPE_128, c.Char_UUID_128,
+                             value_len, props,
+                             ATTR_PERMISSION_NONE, evt_mask,
+                             16, 0, out_handle);
 }
 
-/**
- * @brief  Add the SW Feature service using a vendor specific profile
- * @param  None
- * @retval tBleStatus Status
- */
-tBleStatus Add_SWServW2ST_Service(void)
+static tBleStatus update_float(uint16_t service, uint16_t ch, float v)
 {
-  tBleStatus ret;
-  int32_t NumberOfRecords=1;
-  uint8_t uuid[16];
-
-  COPY_SW_SENS_W2ST_SERVICE_UUID(uuid);
-  BLUENRG_memcpy(&service_uuid.Service_UUID_128, uuid, 16);
-  ret = aci_gatt_add_serv(UUID_TYPE_128, service_uuid.Service_UUID_128, PRIMARY_SERVICE,
-                          1+3*NumberOfRecords, &SWServW2STHandle);
-
-  if (ret != BLE_STATUS_SUCCESS) {
-    goto fail;
-  }
-
-  COPY_QUATERNIONS_W2ST_CHAR_UUID(uuid);
-  BLUENRG_memcpy(&char_uuid.Char_UUID_128, uuid, 16);
-  ret =  aci_gatt_add_char(SWServW2STHandle, UUID_TYPE_128, char_uuid.Char_UUID_128,
-                           2+6*SEND_N_QUATERNIONS,
-                           CHAR_PROP_NOTIFY,
-                           ATTR_PERMISSION_NONE,
-                           GATT_NOTIFY_READ_REQ_AND_WAIT_FOR_APPL_RESP,
-                           16, 0, &QuaternionsCharHandle);
-
-  if (ret != BLE_STATUS_SUCCESS) {
-    goto fail;
-  }
-
-  return BLE_STATUS_SUCCESS;
-
-fail:
-  return BLE_STATUS_ERROR;
+    /* Cortex-M is little-endian → direct memcpy gives float32_le on the wire. */
+    uint8_t buf[4];
+    memcpy(buf, &v, 4);
+    return aci_gatt_update_char_value(service, ch, 0, 4, buf);
 }
 
-/**
- * @brief  Update acceleration characteristic value
- * @param  AxesRaw_t structure containing acceleration value in mg.
- * @retval tBleStatus Status
- */
-tBleStatus Acc_Update(AxesRaw_t *x_axes, AxesRaw_t *g_axes, AxesRaw_t *m_axes)
+static tBleStatus update_u16(uint16_t service, uint16_t ch, uint16_t v)
 {
-  uint8_t buff[2+2*3*3];
-  tBleStatus ret;
-
-  HOST_TO_LE_16(buff,(HAL_GetTick()>>3));
-
-  HOST_TO_LE_16(buff+2,-x_axes->AXIS_Y);
-  HOST_TO_LE_16(buff+4, x_axes->AXIS_X);
-  HOST_TO_LE_16(buff+6,-x_axes->AXIS_Z);
-
-  HOST_TO_LE_16(buff+8,g_axes->AXIS_Y);
-  HOST_TO_LE_16(buff+10,g_axes->AXIS_X);
-  HOST_TO_LE_16(buff+12,g_axes->AXIS_Z);
-
-  HOST_TO_LE_16(buff+14,m_axes->AXIS_Y);
-  HOST_TO_LE_16(buff+16,m_axes->AXIS_X);
-  HOST_TO_LE_16(buff+18,m_axes->AXIS_Z);
-
-  ret = aci_gatt_update_char_value(HWServW2STHandle, AccGyroMagCharHandle,
-				   0, 2+2*3*3, buff);
-  if (ret != BLE_STATUS_SUCCESS){
-    PRINTF("Error while updating Acceleration characteristic: 0x%02X\n",ret) ;
-    return BLE_STATUS_ERROR ;
-  }
-
-  return BLE_STATUS_SUCCESS;
+    uint8_t buf[2] = { (uint8_t)v, (uint8_t)(v >> 8) };
+    return aci_gatt_update_char_value(service, ch, 0, 2, buf);
 }
 
-/**
- * @brief  Update quaternions characteristic value
- * @param  SensorAxes_t *data Structure containing the quaterions
- * @retval tBleStatus      Status
- */
-tBleStatus Quat_Update(AxesRaw_t *data)
+static tBleStatus update_u8(uint16_t service, uint16_t ch, uint8_t v)
 {
-  tBleStatus ret;
-  uint8_t buff[2+6*SEND_N_QUATERNIONS];
-
-  HOST_TO_LE_16(buff,(HAL_GetTick()>>3));
-
-#if SEND_N_QUATERNIONS == 1
-  HOST_TO_LE_16(buff+2,data[0].AXIS_X);
-  HOST_TO_LE_16(buff+4,data[0].AXIS_Y);
-  HOST_TO_LE_16(buff+6,data[0].AXIS_Z);
-#elif SEND_N_QUATERNIONS == 2
-  HOST_TO_LE_16(buff+2,data[0].AXIS_X);
-  HOST_TO_LE_16(buff+4,data[0].AXIS_Y);
-  HOST_TO_LE_16(buff+6,data[0].AXIS_Z);
-
-  HOST_TO_LE_16(buff+8 ,data[1].AXIS_X);
-  HOST_TO_LE_16(buff+10,data[1].AXIS_Y);
-  HOST_TO_LE_16(buff+12,data[1].AXIS_Z);
-#elif SEND_N_QUATERNIONS == 3
-  HOST_TO_LE_16(buff+2,data[0].AXIS_X);
-  HOST_TO_LE_16(buff+4,data[0].AXIS_Y);
-  HOST_TO_LE_16(buff+6,data[0].AXIS_Z);
-
-  HOST_TO_LE_16(buff+8 ,data[1].AXIS_X);
-  HOST_TO_LE_16(buff+10,data[1].AXIS_Y);
-  HOST_TO_LE_16(buff+12,data[1].AXIS_Z);
-
-  HOST_TO_LE_16(buff+14,data[2].AXIS_X);
-  HOST_TO_LE_16(buff+16,data[2].AXIS_Y);
-  HOST_TO_LE_16(buff+18,data[2].AXIS_Z);
-#else
-#error SEND_N_QUATERNIONS could be only 1,2,3
-#endif
-
-  ret = aci_gatt_update_char_value(SWServW2STHandle, QuaternionsCharHandle,
-				   0, 2+6*SEND_N_QUATERNIONS, buff);
-  if (ret != BLE_STATUS_SUCCESS){
-    PRINTF("Error while updating Sensor Fusion characteristic: 0x%02X\n",ret) ;
-    return BLE_STATUS_ERROR ;
-  }
-
-  return BLE_STATUS_SUCCESS;
+    return aci_gatt_update_char_value(service, ch, 0, 1, &v);
 }
 
-/*******************************************************************************
-* Function Name  : Read_Request_CB.
-* Description    : Update the sensor values.
-* Input          : Handle of the characteristic to update.
-* Return         : None.
-*******************************************************************************/
+/* Service builders ----------------------------------------------------------*/
+
+tBleStatus Add_HomeSensor_Service(void)
+{
+    Service_UUID_t s;
+    uint8_t u[16];
+    tBleStatus ret;
+
+    COPY_HOME_SENSOR_SERVICE_UUID(u);
+    memcpy(s.Service_UUID_128, u, 16);
+    /* 1 attribute for service + 3 per char (decl, value, CCC) × 7 chars. */
+    ret = aci_gatt_add_serv(UUID_TYPE_128, s.Service_UUID_128, PRIMARY_SERVICE,
+                            1 + 3 * 7, &home_sensor_service_handle);
+    if (ret != BLE_STATUS_SUCCESS) return ret;
+
+    /* Display chars: Read + Notify, no event mask (we cache values). */
+    const uint8_t DISPLAY_PROPS = CHAR_PROP_READ | CHAR_PROP_NOTIFY;
+    const uint8_t DISPLAY_EVTS  = GATT_DONT_NOTIFY_EVENTS;
+
+    COPY_TEMPERATURE_CHAR_UUID(u);
+    ret = add_char(home_sensor_service_handle, u, 4, DISPLAY_PROPS, DISPLAY_EVTS, &temperature_char_handle);
+    if (ret != BLE_STATUS_SUCCESS) return ret;
+
+    COPY_HUMIDITY_CHAR_UUID(u);
+    ret = add_char(home_sensor_service_handle, u, 4, DISPLAY_PROPS, DISPLAY_EVTS, &humidity_char_handle);
+    if (ret != BLE_STATUS_SUCCESS) return ret;
+
+    COPY_ACCEL_MAG_CHAR_UUID(u);
+    ret = add_char(home_sensor_service_handle, u, 4, DISPLAY_PROPS, DISPLAY_EVTS, &accel_mag_char_handle);
+    if (ret != BLE_STATUS_SUCCESS) return ret;
+
+    COPY_GYRO_MAG_CHAR_UUID(u);
+    ret = add_char(home_sensor_service_handle, u, 4, DISPLAY_PROPS, DISPLAY_EVTS, &gyro_mag_char_handle);
+    if (ret != BLE_STATUS_SUCCESS) return ret;
+
+    COPY_MOTION_ALERT_CHAR_UUID(u);
+    ret = add_char(home_sensor_service_handle, u, 1, DISPLAY_PROPS, DISPLAY_EVTS, &motion_alert_char_handle);
+    if (ret != BLE_STATUS_SUCCESS) return ret;
+
+    COPY_MIC_LEVEL_CHAR_UUID(u);
+    ret = add_char(home_sensor_service_handle, u, 2, DISPLAY_PROPS, DISPLAY_EVTS, &mic_level_char_handle);
+    if (ret != BLE_STATUS_SUCCESS) return ret;
+
+    COPY_LOUD_ALERT_CHAR_UUID(u);
+    ret = add_char(home_sensor_service_handle, u, 1, DISPLAY_PROPS, DISPLAY_EVTS, &loud_alert_char_handle);
+    if (ret != BLE_STATUS_SUCCESS) return ret;
+
+    return BLE_STATUS_SUCCESS;
+}
+
+tBleStatus Add_HomeControl_Service(void)
+{
+    Service_UUID_t s;
+    uint8_t u[16];
+    tBleStatus ret;
+
+    COPY_HOME_CONTROL_SERVICE_UUID(u);
+    memcpy(s.Service_UUID_128, u, 16);
+    ret = aci_gatt_add_serv(UUID_TYPE_128, s.Service_UUID_128, PRIMARY_SERVICE,
+                            1 + 3 * 2, &home_control_service_handle);
+    if (ret != BLE_STATUS_SUCCESS) return ret;
+
+    /* Controller chars: Read + Write (with and without response). Notify on
+     * attribute write so we receive EVT_BLUE_GATT_ATTRIBUTE_MODIFIED.
+     */
+    const uint8_t CONTROL_PROPS = CHAR_PROP_READ | CHAR_PROP_WRITE | CHAR_PROP_WRITE_WITHOUT_RESP;
+    const uint8_t CONTROL_EVTS  = GATT_NOTIFY_ATTRIBUTE_WRITE;
+
+    COPY_LED1_STATE_CHAR_UUID(u);
+    ret = add_char(home_control_service_handle, u, 1, CONTROL_PROPS, CONTROL_EVTS, &led1_state_char_handle);
+    if (ret != BLE_STATUS_SUCCESS) return ret;
+
+    COPY_CONTROL_FLAG_CHAR_UUID(u);
+    ret = add_char(home_control_service_handle, u, 1, CONTROL_PROPS, CONTROL_EVTS, &control_flag_char_handle);
+    if (ret != BLE_STATUS_SUCCESS) return ret;
+
+    return BLE_STATUS_SUCCESS;
+}
+
+/* Per-characteristic updates ------------------------------------------------*/
+
+tBleStatus Home_Temperature_Update(float c) { return update_float(home_sensor_service_handle, temperature_char_handle, c); }
+tBleStatus Home_Humidity_Update(float p)    { return update_float(home_sensor_service_handle, humidity_char_handle,    p); }
+tBleStatus Home_AccelMag_Update(float g)    { return update_float(home_sensor_service_handle, accel_mag_char_handle,   g); }
+tBleStatus Home_GyroMag_Update(float d)     { return update_float(home_sensor_service_handle, gyro_mag_char_handle,    d); }
+tBleStatus Home_MotionAlert_Update(uint8_t f){ return update_u8 (home_sensor_service_handle, motion_alert_char_handle,f); }
+tBleStatus Home_MicLevel_Update(uint16_t l) { return update_u16(home_sensor_service_handle, mic_level_char_handle,    l); }
+tBleStatus Home_LoudAlert_Update(uint8_t f) { return update_u8 (home_sensor_service_handle, loud_alert_char_handle,   f); }
+tBleStatus Home_Led1State_Update(uint8_t s) { return update_u8 (home_control_service_handle, led1_state_char_handle,  s); }
+tBleStatus Home_ControlFlag_Update(uint8_t f){ return update_u8(home_control_service_handle, control_flag_char_handle,f); }
+
+/* Event callbacks -----------------------------------------------------------*/
+
 void Read_Request_CB(uint16_t handle)
 {
-  tBleStatus ret;
-
-  if(handle == AccGyroMagCharHandle + 1)
-  {
-    Acc_Update(&x_axes, &g_axes, &m_axes);
-  }
-  else if (handle == EnvironmentalCharHandle + 1)
-  {
-    float data_t, data_p;
-    data_t = 27.0 + ((uint64_t)rand()*5)/RAND_MAX; //T sensor emulation
-    data_p = 1000.0 + ((uint64_t)rand()*100)/RAND_MAX; //P sensor emulation
-    BlueMS_Environmental_Update((int32_t)(data_p *100), (int16_t)(data_t * 10));
-  }
-
-  if(connection_handle !=0)
-  {
-    ret = aci_gatt_allow_read(connection_handle);
-    if (ret != BLE_STATUS_SUCCESS)
-    {
-      PRINTF("aci_gatt_allow_read() failed: 0x%02x\r\n", ret);
+    /* All chars are configured with GATT_DONT_NOTIFY_EVENTS, so this callback
+     * should not fire. If it ever does, simply allow the read to complete. */
+    (void)handle;
+    if (connection_handle != 0) {
+        aci_gatt_allow_read(connection_handle);
     }
-  }
 }
 
-tBleStatus BlueMS_Environmental_Update(int32_t press, int16_t temp)
+void Attribute_Modified_CB(uint16_t handle, uint8_t length, uint8_t *data)
 {
-  tBleStatus ret;
-  uint8_t buff[8];
-  HOST_TO_LE_16(buff, HAL_GetTick()>>3);
+    /* aci_gatt_attribute_modified_event reports the VALUE attribute handle,
+     * which is (char_decl_handle + 1) in BlueNRG-MS.
+     */
+    if (length < 1) return;
 
-  HOST_TO_LE_32(buff+2,press);
-  HOST_TO_LE_16(buff+6,temp);
-
-  ret = aci_gatt_update_char_value(HWServW2STHandle, EnvironmentalCharHandle,
-                                   0, 8, buff);
-
-  if (ret != BLE_STATUS_SUCCESS){
-    PRINTF("Error while updating TEMP characteristic: 0x%04X\n",ret) ;
-    return BLE_STATUS_ERROR ;
-  }
-
-  return BLE_STATUS_SUCCESS;
+    if (handle == led1_state_char_handle + 1) {
+        /* TODO Milestone 4: drive PA5 via HAL_GPIO_WritePin(). */
+        PRINTF("Write LED1State = %u\n", data[0]);
+        Home_Led1State_Update(data[0]);
+    } else if (handle == control_flag_char_handle + 1) {
+        PRINTF("Write ControlFlag = 0x%02X\n", data[0]);
+        Home_ControlFlag_Update(data[0]);
+    }
 }

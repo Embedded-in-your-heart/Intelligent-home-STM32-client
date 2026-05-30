@@ -1,0 +1,66 @@
+# Build and Debug
+build/
+Debug/
+Release/
+*.elf
+*.bin
+*.hex
+*.out
+*.o
+*.a
+*.so
+*.dylib
+
+# STM32CubeIDE
+.metadata/
+RemoteSystemsTempFiles/
+.settings/
+.cproject
+.project
+*.launch
+.cdt.autotools*
+
+# IDE and Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-workspace
+*.sublime-project
+
+# Python and Data Analysis
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.csv
+*.log
+
+# Compilation and Dependencies
+*.o
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+.depend
+*.d
+
+# Documentation build
+docs/_build/
+site/
+
+# Misc
+.vscode
+.env
+*.bak
+*.tmp
+.claude/
+.qodo/

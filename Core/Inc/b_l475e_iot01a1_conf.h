@@ -58,7 +58,7 @@
 #define BUS_SPI1_BAUDRATE                   16000000U /* baud rate of SPIn = 16 Mbps */
 
 /* UART1 Baud rate in bps  */
-#define BUS_UART1_BAUDRATE                  9600U /* baud rate of UARTn = 9600 baud */
+#define BUS_UART1_BAUDRATE                  115200U /* baud rate of UARTn = 115200 baud */
 
 /**
   * @}
