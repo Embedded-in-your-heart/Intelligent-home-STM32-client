@@ -26,5 +26,8 @@
 #define SENSOR_DEMO_BS
 #define HCI_TL
 #define HCI_TL_INTERFACE
+/* STMicroelectronics.X-CUBE-MEMS1.11.3.0 */
+#define LSM6DSL_ACCGYR_I2C
+#define HTS221_HUMTEMP_I2C
 
 #endif /* __RTE_COMPONENTS_H__ */

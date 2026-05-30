@@ -21,13 +21,11 @@
 #include "cmsis_os.h"
 #include "dfsdm.h"
 #include "dma.h"
-#include "i2c.h"
 #include "quadspi.h"
 #include "usart.h"
 #include "usb_otg.h"
 #include "gpio.h"
 #include "app_bluenrg_ms.h"
-#include "stdio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -98,7 +96,6 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_DFSDM1_Init();
-  MX_I2C2_Init();
   MX_QUADSPI_Init();
   MX_USART3_UART_Init();
   MX_USB_OTG_FS_PCD_Init();
