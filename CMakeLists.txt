@@ -47,6 +47,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     ${CMAKE_CURRENT_SOURCE_DIR}/BlueNRG_MS/App/sensor_task.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/BlueNRG_MS/App/notify_queue.c
 )
 
 # Add include paths

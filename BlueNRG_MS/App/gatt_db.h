@@ -25,6 +25,19 @@ typedef union Char_UUID_t_s {
   uint8_t  Char_UUID_128[16];
 } Char_UUID_t;
 
+/* Characteristic identifier for the NotifyQueue dispatcher ------------------*/
+typedef enum {
+  HOME_CHAR_TEMPERATURE = 0,
+  HOME_CHAR_HUMIDITY,
+  HOME_CHAR_ACCEL_MAG,
+  HOME_CHAR_GYRO_MAG,
+  HOME_CHAR_MOTION_ALERT,
+  HOME_CHAR_MIC_LEVEL,
+  HOME_CHAR_LOUD_ALERT,
+  HOME_CHAR_LED1_STATE,
+  HOME_CHAR_CONTROL_FLAG,
+} HomeCharId;
+
 /* Service registration ------------------------------------------------------*/
 tBleStatus Add_HomeSensor_Service(void);
 tBleStatus Add_HomeControl_Service(void);

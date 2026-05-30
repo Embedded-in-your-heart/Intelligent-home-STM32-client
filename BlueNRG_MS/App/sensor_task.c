@@ -24,6 +24,7 @@
 #include "bluenrg_conf.h"           /* PRINTF */
 #include "hts221.h"
 #include "lsm6dsl.h"
+#include "notify_queue.h"
 
 /* I²C 8-bit addresses on B-L475E-IOT01A (write form; HAL toggles R/W bit). */
 #define HTS221_I2C_ADDR_8BIT    0xBEU
@@ -35,6 +36,12 @@
 
 /* SensorTask tick: 250 ms → 4 Hz IMU; HTS221 sampled every 4 ticks. */
 #define SENSOR_TICK_MS          250U
+
+/* MotionAlert thresholds + debounce (docs §5.5). */
+#define MOTION_ACCEL_THR_G      1.8f
+#define MOTION_GYRO_THR_DPS     250.0f
+#define MOTION_HOLD_MS          100U     /* condition must persist this long */
+#define MOTION_LOCKOUT_MS       1000U    /* min interval between state transitions */
 
 /* Sensor handles ------------------------------------------------------------*/
 static HTS221_Object_t   hts221_obj;
@@ -144,8 +151,14 @@ static void StartSensorTask(void *argument)
            hts_ok ? "OK" : "FAIL",
            lsm_ok ? "OK" : "FAIL");
 
+    /* MotionAlert state machine (statics — preserved across iterations). */
+    static uint32_t motion_high_since    = 0U;
+    static uint32_t motion_lockout_until = 0U;
+    static uint8_t  motion_state         = 0U;
+
     uint32_t tick = 0;
     for (;;) {
+        /* IMU @ 4 Hz: read, push magnitudes to BLE, evaluate MotionAlert. */
         if (lsm_ok) {
             LSM6DSL_Axes_t a = {0}, g = {0};
             int ar = LSM6DSL_ACC_GetAxes(&lsm6dsl_obj,  &a);
@@ -156,19 +169,51 @@ static void StartSensorTask(void *argument)
                 float gx = g.x / 1000.0f, gy = g.y / 1000.0f, gz = g.z / 1000.0f;
                 float a_mag = sqrtf(ax*ax + ay*ay + az*az);
                 float g_mag = sqrtf(gx*gx + gy*gy + gz*gz);
-                PRINTF("[imu] a=(%.2f,%.2f,%.2f)g |a|=%.2f  g=(%.0f,%.0f,%.0f)dps |g|=%.1f\n",
-                       ax, ay, az, a_mag, gx, gy, gz, g_mag);
+
+                NotifyQueue_PushFloat(HOME_CHAR_ACCEL_MAG, a_mag);
+                NotifyQueue_PushFloat(HOME_CHAR_GYRO_MAG,  g_mag);
+
+                /* MotionAlert: edge debounce + lockout. */
+                uint32_t now  = HAL_GetTick();
+                int      cond = (a_mag > MOTION_ACCEL_THR_G ||
+                                 g_mag > MOTION_GYRO_THR_DPS) ? 1 : 0;
+                if (cond) {
+                    if (motion_high_since == 0U) motion_high_since = now;
+                    if (motion_state == 0U &&
+                        (now - motion_high_since) >= MOTION_HOLD_MS &&
+                        now >= motion_lockout_until) {
+                        motion_state = 1U;
+                        NotifyQueue_PushU8(HOME_CHAR_MOTION_ALERT, 1U);
+                        motion_lockout_until = now + MOTION_LOCKOUT_MS;
+                        PRINTF("[motion] ALERT (|a|=%.2f |g|=%.0f)\n", a_mag, g_mag);
+                    }
+                } else {
+                    motion_high_since = 0U;
+                    if (motion_state == 1U && now >= motion_lockout_until) {
+                        motion_state = 0U;
+                        NotifyQueue_PushU8(HOME_CHAR_MOTION_ALERT, 0U);
+                        PRINTF("[motion] clear\n");
+                    }
+                }
+
+                /* Serial print only every 4 ticks (1 Hz) to avoid VCP flood. */
+                if ((tick & 0x03U) == 0U) {
+                    PRINTF("[imu] a=(%.2f,%.2f,%.2f)g |a|=%.2f  g=(%.0f,%.0f,%.0f)dps |g|=%.1f\n",
+                           ax, ay, az, a_mag, gx, gy, gz, g_mag);
+                }
             } else {
                 PRINTF("[imu] read failed (acc=%d gyro=%d)\n", ar, gr);
             }
         }
 
-        /* HTS221 once per second. */
+        /* HTS221 @ 1 Hz: read, push, print. */
         if (hts_ok && (tick & 0x03U) == 0U) {
             float t = 0.0f, h = 0.0f;
             int tr = HTS221_TEMP_GetTemperature(&hts221_obj, &t);
             int hr = HTS221_HUM_GetHumidity(&hts221_obj,     &h);
             if (tr == HTS221_OK && hr == HTS221_OK) {
+                NotifyQueue_PushFloat(HOME_CHAR_TEMPERATURE, t);
+                NotifyQueue_PushFloat(HOME_CHAR_HUMIDITY,    h);
                 PRINTF("[env] T=%.1fC H=%.1f%%\n", t, h);
             } else {
                 PRINTF("[env] read failed (temp=%d hum=%d)\n", tr, hr);

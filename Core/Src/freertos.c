@@ -27,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include "app_bluenrg_ms.h"
 #include "sensor_task.h"
+#include "notify_queue.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -101,6 +102,7 @@ void MX_FREERTOS_Init(void) {
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
+  NotifyQueue_Init();                             /* Must precede producer/consumer tasks. */
   bleTaskHandle = osThreadNew(StartBleTask, NULL, &bleTask_attributes);
   SensorTask_Create();
   /* USER CODE END RTOS_THREADS */
@@ -142,6 +144,7 @@ static void StartBleTask(void *argument)
   (void)argument;
   for (;;) {
     MX_BlueNRG_MS_Process();
+    NotifyQueue_Pump();            /* Drains sensor pushes and calls Home_*_Update. */
     osDelay(1);
   }
 }
