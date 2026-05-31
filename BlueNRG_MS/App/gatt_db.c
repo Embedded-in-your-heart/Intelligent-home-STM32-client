@@ -14,6 +14,7 @@
 #include "bluenrg_def.h"
 #include "bluenrg_conf.h"
 #include "bluenrg_gatt_aci.h"
+#include "main.h"                   /* LED1_PIN_Pin / LED1_PIN_GPIO_Port */
 #include "gatt_db.h"
 
 /* UUID helper ---------------------------------------------------------------*/
@@ -62,6 +63,9 @@ static uint16_t control_flag_char_handle;
 
 /* Externals referenced from sensor.c -----------------------------------------*/
 extern __IO uint16_t connection_handle;
+
+/* ControlFlag latest value — reserved for future use; currently only logged. */
+static volatile uint8_t g_control_flag;
 
 /* Internal helpers ----------------------------------------------------------*/
 static tBleStatus add_char(uint16_t service, const uint8_t uuid[16],
@@ -206,11 +210,14 @@ void Attribute_Modified_CB(uint16_t handle, uint8_t length, uint8_t *data)
     if (length < 1) return;
 
     if (handle == led1_state_char_handle + 1) {
-        /* TODO Milestone 4: drive PA5 via HAL_GPIO_WritePin(). */
-        PRINTF("Write LED1State = %u\n", data[0]);
-        Home_Led1State_Update(data[0]);
+        uint8_t v = data[0] ? 1U : 0U;
+        HAL_GPIO_WritePin(LED1_PIN_GPIO_Port, LED1_PIN_Pin,
+                          v ? GPIO_PIN_SET : GPIO_PIN_RESET);
+        Home_Led1State_Update(v);
+        PRINTF("Write LED1State = %u\n", v);
     } else if (handle == control_flag_char_handle + 1) {
-        PRINTF("Write ControlFlag = 0x%02X\n", data[0]);
-        Home_ControlFlag_Update(data[0]);
+        g_control_flag = data[0];
+        Home_ControlFlag_Update(g_control_flag);
+        PRINTF("Write ControlFlag = 0x%02X\n", g_control_flag);
     }
 }

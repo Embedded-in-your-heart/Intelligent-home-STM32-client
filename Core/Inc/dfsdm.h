@@ -38,6 +38,8 @@ extern DFSDM_Channel_HandleTypeDef hdfsdm1_channel1;
 
 extern DFSDM_Channel_HandleTypeDef hdfsdm1_channel2;
 
+extern DMA_HandleTypeDef hdma_dfsdm1_flt0;
+
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

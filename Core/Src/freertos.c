@@ -27,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include "app_bluenrg_ms.h"
 #include "sensor_task.h"
+#include "audio_task.h"
 #include "notify_queue.h"
 /* USER CODE END Includes */
 
@@ -105,6 +106,7 @@ void MX_FREERTOS_Init(void) {
   NotifyQueue_Init();                             /* Must precede producer/consumer tasks. */
   bleTaskHandle = osThreadNew(StartBleTask, NULL, &bleTask_attributes);
   SensorTask_Create();
+  AudioTask_Create();
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */

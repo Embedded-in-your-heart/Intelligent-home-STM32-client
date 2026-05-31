@@ -147,7 +147,7 @@ void HAL_DFSDM_FilterMspInit(DFSDM_Filter_HandleTypeDef* dfsdm_filterHandle)
     /* DFSDM1_FLT0 Init */
   if(dfsdm_filterHandle->Instance == DFSDM1_Filter0){
     hdma_dfsdm1_flt0.Instance = DMA1_Channel4;
-    hdma_dfsdm1_flt0.Init.Request = DMA_REQUEST_0;
+    hdma_dfsdm1_flt0.Init.Request = DMA_REQUEST_7;
     hdma_dfsdm1_flt0.Init.Direction = DMA_PERIPH_TO_MEMORY;
     hdma_dfsdm1_flt0.Init.PeriphInc = DMA_PINC_DISABLE;
     hdma_dfsdm1_flt0.Init.MemInc = DMA_MINC_ENABLE;
