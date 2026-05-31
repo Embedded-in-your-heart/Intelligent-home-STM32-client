@@ -212,9 +212,9 @@ cmake --build --preset Debug
 
 板上的所有 log 都走 USART1 → ST-LINK VCP：
 
-- Baud rate：**115200**, 8N1
+- Baud rate：**115200**, 8N1（若 CubeMX regen 後變回 9600，改 `Core/Inc/b_l475e_iot01a1_conf.h` 的 `BUS_UART1_BAUDRATE`）
 - 來源：`PRINTF(...)` macro（需 `BLE1_DEBUG=1`，已在 `BlueNRG_MS/Target/bluenrg_conf.h` 設好）
-- 開機預期：
+- 開機預期（穩定後三個 task 並行）：
 
   ```
   HWver ?, FWver ?
@@ -222,6 +222,17 @@ cmake --build --preset Debug
   Home Sensor Service added.
   Home Control Service added.
   Advertising as HOME-XXXX
+  HTS221  WHO_AM_I = 0xBC (expected 0xBC)
+  LSM6DSL WHO_AM_I = 0x6A (expected 0x6A)
+  SensorTask started (HTS221=OK, LSM6DSL=OK).
+  AudioTask started (polling → BLE, 80 samples / 200 ms).
+  [imu] a=(0.01,0.00,1.00)g |a|=1.00  g=(0,0,0)dps |g|=0.0     ← 每秒
+  [env] T=25.3C H=42.1%                                        ← 每秒
+  [mic] rms=2  lvl=16                                          ← 每秒
+  Write LED1State = 1                                          ← 寫 char 才出
+  [motion] ALERT (|a|=2.13 |g|=87)                             ← 搖晃時
+  [loud] ALERT (mic=520)                                       ← 大聲時
+  Connected to XX:XX:XX:XX:XX:XX                               ← nRF Connect 連上
   ```
 
 ---
