@@ -119,45 +119,61 @@ while True:
 Intelligent-home-STM32-client/
 ├── Intelligent-home-STM32-client.ioc      ← STM32CubeMX 設定（peripheral / pinout / clock / RTOS）
 ├── README.md                              ← 本文件
+├── CMakeLists.txt                         ← 頂層 CMake；user 自建檔案加在這（CubeMX 不會沖）
+├── CMakePresets.json                      ← CMake preset（Debug / Release）
 ├── STM32L475XX_FLASH.ld                   ← Linker script（CubeMX 生成，勿動）
 ├── startup_stm32l475xx.s                  ← Startup（CubeMX 生成，勿動）
+├── cmake/                                 ← CubeMX 生成的 CMake（每次 regen 重寫，勿手改）
 │
 ├── Core/                                  ← 應用層（可改，注意 USER CODE 區塊）
 │   ├── Inc/
 │   │   ├── main.h                         ← Pin label 巨集（例如 LED1_PIN_*）
 │   │   ├── b_l475e_iot01a1_conf.h         ← BSP 設定（USE_COM_LOG / BUS_UART1_BAUDRATE）
 │   │   ├── FreeRTOSConfig.h               ← FreeRTOS 設定（CubeMX 生成）
+│   │   ├── dfsdm.h / dma.h / i2c…         ← peripheral handle 宣告（CubeMX 生成）
 │   │   └── …
 │   └── Src/
 │       ├── main.c                         ← 進入點 + clock + 週邊 init
-│       ├── freertos.c                     ← Task / Queue / Mutex 建立（USER 區塊內）
-│       ├── stm32l4xx_it.c                 ← ISR（USER 區塊內可加 callback）
+│       ├── freertos.c                     ← Task / Queue 建立（USER 區塊：BleTask / SensorTask / AudioTask / NotifyQueue）
+│       ├── dfsdm.c / dma.c                ← DFSDM + DMA init / MSP（CubeMX 生成）
+│       ├── stm32l4xx_it.c                 ← ISR（DMA1_Ch4 / DFSDM IRQ → HAL handler）
 │       ├── stm32l4xx_hal_msp.c            ← HAL MSP init（CubeMX 生成）
 │       └── …
 │
 ├── BlueNRG_MS/                            ← BLE 應用層（可改）
 │   ├── App/
-│   │   ├── app_bluenrg_ms.{c,h}           ← BLE Stack init、main-loop callback
-│   │   ├── gatt_db.{c,h}                  ← **GATT 表單一真實來源**（§3 表的對應實作）
-│   │   ├── sensor.{c,h}                   ← BLE GAP / 廣告 / HCI event router（名稱沿用 ST template）
-│   │   └── （後續 milestone 會新增 sensor_task.c / audio_task.c）
+│   │   ├── app_bluenrg_ms.{c,h}           ← BLE Stack init、main-loop callback（BleTask 呼叫）
+│   │   ├── sensor.{c,h}                   ← BLE GAP / 廣告（HOME-XXXX）/ HCI event router（名稱沿用 ST template）
+│   │   ├── gatt_db.{c,h}                  ← **GATT 表單一真實來源**（§3 表的對應實作 + Write callback）
+│   │   ├── notify_queue.{c,h}             ← sensor/audio task → BleTask 的推播佇列（序列化 ACI 呼叫）
+│   │   ├── sensor_task.{c,h}              ← HTS221 + LSM6DSL 採集（I²C2 via BSP）→ NotifyQueue
+│   │   └── audio_task.{c,h}               ← MP34DT01 麥克風（DFSDM + DMA interrupt）→ NotifyQueue
 │   └── Target/
 │       ├── bluenrg_conf.h                 ← `BLE1_DEBUG` 開關（=1 才會印 log）
 │       └── hci_tl_interface.{c,h}         ← BlueNRG HCI 傳輸層（勿動）
 │
+├── X-CUBE-MEMS1/Target/                   ← MEMS 設定；custom_mems_conf.h 把 HTS221/LSM6DSL I/O hook 到 BSP_I2C2_*
+│
 ├── Drivers/                               ← HAL + BSP（勿動）
-│   ├── BSP/B-L475E-IOT01A1/               ← 板載 LED / Button / COM driver
+│   ├── BSP/B-L475E-IOT01A1/               ← 板載 LED / Button / COM / I²C bus driver
+│   ├── BSP/Components/{hts221,lsm6dsl}/   ← MEMS component driver（X-CUBE-MEMS1 匯入）
 │   ├── STM32L4xx_HAL_Driver/              ← HAL driver
 │   └── CMSIS/                             ← CMSIS
 │
-├── Middlewares/                           ← FreeRTOS + BlueNRG-MS stack（勿動）
-│   ├── Third_Party/FreeRTOS/
-│   └── ST/BlueNRG-MS/
+├── Middlewares/                           ← FreeRTOS / BLE stack / DSP（勿動）
+│   ├── Third_Party/FreeRTOS/              ← FreeRTOS + CMSIS-RTOS2 wrapper
+│   ├── Third_Party/ARM/ , ST/ARM/DSP/     ← CMSIS-DSP（X-CUBE-ALGOBUILD 匯入）
+│   └── ST/BlueNRG-MS/                     ← BlueNRG-MS BLE stack
 │
+├── build/                                ← 編譯產物（不入 git）
 └── .claude/
     └── rules/                             ← 給 Claude Code 的協作規範
         └── file-modification-scope.md     ← 哪些檔案可改、哪些要走 .ioc
 ```
+
+> 資料流：`SensorTask` / `AudioTask` 採集後把資料丟進 `NotifyQueue`，只有 `BleTask`
+> 會呼叫 BlueNRG ACI（`gatt_db.c` 的 `Home_*_Update`），確保 SPI3 上的 HCI 呼叫序列化。
+> 詳細任務模型見 [STM32 Client 開發文件 §6](../docs/STM32%20Client%20開發文件.md)。
 
 ### 5.1 可修改範圍速查
 
@@ -168,7 +184,9 @@ Intelligent-home-STM32-client/
 | `Core/Inc/`, `Core/Src/` | ✅ 可改 | 只能在 `/* USER CODE BEGIN … */ … /* USER CODE END … */` 區塊內 |
 | `Core/Inc/b_l475e_iot01a1_conf.h` | ✅ 可改 | BSP 設定（baud rate、USE_COM_LOG…） |
 | `*.ioc` | ⚠️ 經由 CubeMX | 改 pinout / peripheral / FreeRTOS 設定走這條 |
-| `Drivers/**`, `Middlewares/**` | ❌ 勿動 | HAL / BSP / 中介層；regenerate 或升級會覆蓋 |
+| `CMakeLists.txt`（頂層）| ✅ 可改 | 新增 user source 加在 `target_sources` 的 user 區塊 |
+| `Drivers/**`, `Middlewares/**` | ❌ 勿動 | HAL / BSP / MEMS component / 中介層；regenerate 或升級會覆蓋 |
+| `X-CUBE-MEMS1/**`, `cmake/**` | ❌ 勿動 | CubeMX / 軟體包生成；regenerate 會重寫 |
 | Linker / Startup | ❌ 勿動 | 由 CubeMX 維護 |
 
 詳見 [`.claude/rules/file-modification-scope.md`](./.claude/rules/file-modification-scope.md)。
@@ -225,7 +243,7 @@ cmake --build --preset Debug
   HTS221  WHO_AM_I = 0xBC (expected 0xBC)
   LSM6DSL WHO_AM_I = 0x6A (expected 0x6A)
   SensorTask started (HTS221=OK, LSM6DSL=OK).
-  AudioTask started (polling → BLE, 80 samples / 200 ms).
+  AudioTask started (DFSDM + DMA interrupt, 1600-sample window @ ~8 kHz).
   [imu] a=(0.01,0.00,1.00)g |a|=1.00  g=(0,0,0)dps |g|=0.0     ← 每秒
   [env] T=25.3C H=42.1%                                        ← 每秒
   [mic] rms=2  lvl=16                                          ← 每秒
