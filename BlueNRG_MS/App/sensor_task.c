@@ -109,16 +109,16 @@ static int hts221_handle_init(void)
     };
 
     if (HTS221_RegisterBusIO(&hts221_obj, &io) != HTS221_OK) {
-        PRINTF("HTS221 RegisterBusIO failed\n");
+        PRINTF("HTS221 RegisterBusIO failed\r\n");
         return -1;
     }
 
     uint8_t id = 0;
     if (HTS221_ReadID(&hts221_obj, &id) != HTS221_OK) {
-        PRINTF("HTS221 ReadID failed\n");
+        PRINTF("HTS221 ReadID failed\r\n");
         return -1;
     }
-    PRINTF("HTS221 WHO_AM_I = 0x%02X (expected 0x%02X)\n", id, HTS221_WHO_AM_I_VAL);
+    PRINTF("HTS221 WHO_AM_I = 0x%02X (expected 0x%02X)\r\n", id, HTS221_WHO_AM_I_VAL);
     if (id != HTS221_WHO_AM_I_VAL) return -1;
 
     if (HTS221_Init(&hts221_obj)        != HTS221_OK) return -1;
@@ -141,16 +141,16 @@ static int lsm6dsl_handle_init(void)
     };
 
     if (LSM6DSL_RegisterBusIO(&lsm6dsl_obj, &io) != LSM6DSL_OK) {
-        PRINTF("LSM6DSL RegisterBusIO failed\n");
+        PRINTF("LSM6DSL RegisterBusIO failed\r\n");
         return -1;
     }
 
     uint8_t id = 0;
     if (LSM6DSL_ReadID(&lsm6dsl_obj, &id) != LSM6DSL_OK) {
-        PRINTF("LSM6DSL ReadID failed\n");
+        PRINTF("LSM6DSL ReadID failed\r\n");
         return -1;
     }
-    PRINTF("LSM6DSL WHO_AM_I = 0x%02X (expected 0x%02X)\n", id, LSM6DSL_WHO_AM_I_VAL);
+    PRINTF("LSM6DSL WHO_AM_I = 0x%02X (expected 0x%02X)\r\n", id, LSM6DSL_WHO_AM_I_VAL);
     if (id != LSM6DSL_WHO_AM_I_VAL) return -1;
 
     /* Basic init: sets default ODR/FS values via the component driver. */
@@ -173,7 +173,7 @@ static int lsm6dsl_handle_init(void)
      *         (required by the LSM6DSL datasheet, section 7.7).
      *         LSM6DSL_BYPASS_MODE = 0. */
     if (LSM6DSL_FIFO_Set_Mode(&lsm6dsl_obj, (uint8_t)LSM6DSL_BYPASS_MODE) != LSM6DSL_OK) {
-        PRINTF("LSM6DSL FIFO bypass failed\n");
+        PRINTF("LSM6DSL FIFO bypass failed\r\n");
         return -1;
     }
 
@@ -182,7 +182,7 @@ static int lsm6dsl_handle_init(void)
      *         High-level: LSM6DSL_FIFO_ACC_Set_Decimation(LSM6DSL_FIFO_XL_NO_DEC = 1). */
     if (LSM6DSL_FIFO_ACC_Set_Decimation(&lsm6dsl_obj,
                                          (uint8_t)LSM6DSL_FIFO_XL_NO_DEC) != LSM6DSL_OK) {
-        PRINTF("LSM6DSL FIFO accel decimation failed\n");
+        PRINTF("LSM6DSL FIFO accel decimation failed\r\n");
         return -1;
     }
 
@@ -191,7 +191,7 @@ static int lsm6dsl_handle_init(void)
      *         High-level: LSM6DSL_FIFO_GYRO_Set_Decimation(LSM6DSL_FIFO_GY_DISABLE = 0). */
     if (LSM6DSL_FIFO_GYRO_Set_Decimation(&lsm6dsl_obj,
                                           (uint8_t)LSM6DSL_FIFO_GY_DISABLE) != LSM6DSL_OK) {
-        PRINTF("LSM6DSL FIFO gyro decimation failed\n");
+        PRINTF("LSM6DSL FIFO gyro decimation failed\r\n");
         return -1;
     }
 
@@ -199,7 +199,7 @@ static int lsm6dsl_handle_init(void)
      *         Register FIFO_CTRL5: ODR_FIFO[3:0] = 0100b (104 Hz).
      *         High-level: LSM6DSL_FIFO_Set_ODR_Value(104.0f). */
     if (LSM6DSL_FIFO_Set_ODR_Value(&lsm6dsl_obj, 104.0f) != LSM6DSL_OK) {
-        PRINTF("LSM6DSL FIFO ODR failed\n");
+        PRINTF("LSM6DSL FIFO ODR failed\r\n");
         return -1;
     }
 
@@ -207,7 +207,7 @@ static int lsm6dsl_handle_init(void)
      *         Register FIFO_CTRL5: FIFO_MODE[2:0] = 110b.
      *         LSM6DSL_STREAM_MODE = 6. */
     if (LSM6DSL_FIFO_Set_Mode(&lsm6dsl_obj, (uint8_t)LSM6DSL_STREAM_MODE) != LSM6DSL_OK) {
-        PRINTF("LSM6DSL FIFO stream mode failed\n");
+        PRINTF("LSM6DSL FIFO stream mode failed\r\n");
         return -1;
     }
 
@@ -273,10 +273,10 @@ static void StartSensorTask(void *argument)
     int lsm_ok = (lsm6dsl_handle_init() == 0);
 
     if (!hts_ok && !lsm_ok) {
-        PRINTF("SensorTask: both sensors failed to init; task idle.\n");
+        PRINTF("SensorTask: both sensors failed to init; task idle.\r\n");
         for (;;) osDelay(1000);
     }
-    PRINTF("SensorTask started (HTS221=%s, LSM6DSL=%s).\n",
+    PRINTF("SensorTask started (HTS221=%s, LSM6DSL=%s).\r\n",
            hts_ok ? "OK" : "FAIL",
            lsm_ok ? "OK" : "FAIL");
 
@@ -329,7 +329,7 @@ static void StartSensorTask(void *argument)
                                      LSM6DSL_FIFO_STATUS2,
                                      (uint8_t *)&status2, 1) == 0 &&
                     status2.over_run) {
-                    PRINTF("[imu] FIFO overrun (level=%u); resetting FIFO\n",
+                    PRINTF("[imu] FIFO overrun (level=%u); resetting FIFO\r\n",
                            (unsigned)fifo_level);
                     /* Bypass then re-enable stream mode to flush and restart. */
                     (void)LSM6DSL_FIFO_Set_Mode(&lsm6dsl_obj,
@@ -367,7 +367,7 @@ static void StartSensorTask(void *argument)
              * configuration needs on-hardware tuning. */
             if (!have_fifo) {
                 if (!fifo_fallback_logged) {
-                    PRINTF("[imu] FIFO empty, falling back to direct reads\n");
+                    PRINTF("[imu] FIFO empty, falling back to direct reads\r\n");
                     fifo_fallback_logged = 1;
                 }
                 LSM6DSL_Axes_t a_direct = {0};
@@ -417,14 +417,14 @@ static void StartSensorTask(void *argument)
                         motion_state = 1U;
                         NotifyQueue_PushU8(HOME_CHAR_MOTION_ALERT, 1U);
                         motion_lockout_until = now + MOTION_LOCKOUT_MS;
-                        PRINTF("[motion] ALERT (|a|=%.2f |g|=%.0f)\n", a_mag, g_mag);
+                        PRINTF("[motion] ALERT (|a|=%.2f |g|=%.0f)\r\n", a_mag, g_mag);
                     }
                 } else {
                     motion_high_since = 0U;
                     if (motion_state == 1U && now >= motion_lockout_until) {
                         motion_state = 0U;
                         NotifyQueue_PushU8(HOME_CHAR_MOTION_ALERT, 0U);
-                        PRINTF("[motion] clear\n");
+                        PRINTF("[motion] clear\r\n");
                     }
                 }
             }
@@ -442,7 +442,7 @@ static void StartSensorTask(void *argument)
 
                 /* Throttled periodic debug print (every 4 ticks, ~1 Hz). */
                 if ((tick & 0x03U) == 0U) {
-                    PRINTF("[imu] vib_rms=%.2f mg  quake_rms=%.2f mg  warm=%u\n",
+                    PRINTF("[imu] vib_rms=%.2f mg  quake_rms=%.2f mg  warm=%u\r\n",
                            (double)dsp_result.vib_rms_mg,
                            (double)dsp_result.quake_rms_mg,
                            (unsigned)dsp_result.warmed_up);
@@ -461,7 +461,7 @@ static void StartSensorTask(void *argument)
                             vib_consec_on >= VIB_CONSEC_ON) {
                             vib_alert_state = 1U;
                             NotifyQueue_PushU8(HOME_CHAR_VIBRATION_ALERT, 1U);
-                            PRINTF("[vib] ALERT (vib_rms=%.2f mg)\n",
+                            PRINTF("[vib] ALERT (vib_rms=%.2f mg)\r\n",
                                    (double)dsp_result.vib_rms_mg);
                         }
                     } else if (dsp_result.vib_rms_mg < VIB_OFF_THR_MG) {
@@ -471,7 +471,7 @@ static void StartSensorTask(void *argument)
                             vib_consec_off >= VIB_CONSEC_OFF) {
                             vib_alert_state = 0U;
                             NotifyQueue_PushU8(HOME_CHAR_VIBRATION_ALERT, 0U);
-                            PRINTF("[vib] clear\n");
+                            PRINTF("[vib] clear\r\n");
                         }
                     } else {
                         /* Value between VIB_OFF and VIB_ON: do not advance either
@@ -492,7 +492,7 @@ static void StartSensorTask(void *argument)
                             quake_alert_state = 1U;
                             NotifyQueue_PushU8(HOME_CHAR_QUAKE_ALERT, 1U);
                             quake_lockout_until = now + QUAKE_LOCKOUT_MS;
-                            PRINTF("[quake] ALERT (quake_rms=%.2f mg)\n",
+                            PRINTF("[quake] ALERT (quake_rms=%.2f mg)\r\n",
                                    (double)dsp_result.quake_rms_mg);
                         }
                     } else {
@@ -504,7 +504,7 @@ static void StartSensorTask(void *argument)
                             quake_alert_state = 0U;
                             NotifyQueue_PushU8(HOME_CHAR_QUAKE_ALERT, 0U);
                             quake_lockout_until = now + QUAKE_LOCKOUT_MS;
-                            PRINTF("[quake] clear\n");
+                            PRINTF("[quake] clear\r\n");
                         }
                     }
                 }
@@ -516,7 +516,7 @@ static void StartSensorTask(void *argument)
                 float ay = last_ay_mg / 1000.0f;
                 float az = last_az_mg / 1000.0f;
                 float a_mag = sqrtf(ax*ax + ay*ay + az*az);
-                PRINTF("[imu] a=(%.2f,%.2f,%.2f)g |a|=%.2f\n", ax, ay, az, a_mag);
+                PRINTF("[imu] a=(%.2f,%.2f,%.2f)g |a|=%.2f\r\n", ax, ay, az, a_mag);
             }
         }
 
@@ -528,9 +528,9 @@ static void StartSensorTask(void *argument)
             if (tr == HTS221_OK && hr == HTS221_OK) {
                 NotifyQueue_PushFloat(HOME_CHAR_TEMPERATURE, t);
                 NotifyQueue_PushFloat(HOME_CHAR_HUMIDITY,    h);
-                PRINTF("[env] T=%.1fC H=%.1f%%\n", t, h);
+                PRINTF("[env] T=%.1fC H=%.1f%%\r\n", t, h);
             } else {
-                PRINTF("[env] read failed (temp=%d hum=%d)\n", tr, hr);
+                PRINTF("[env] read failed (temp=%d hum=%d)\r\n", tr, hr);
             }
         }
 

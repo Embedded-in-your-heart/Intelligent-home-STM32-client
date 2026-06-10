@@ -71,7 +71,8 @@ extern "C" {
 
 #if (BLE1_DEBUG == 1)
 #include <stdio.h>
-#define PRINTF(...)                   printf(__VA_ARGS__)
+#include "printf_lock.h"
+#define PRINTF(...)                   PrintfLock_Printf(__VA_ARGS__)
 #else
 #define PRINTF(...)
 #endif

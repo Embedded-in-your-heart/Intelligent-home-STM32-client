@@ -68,9 +68,9 @@ void Set_DeviceConnectable(void)
                                    0, NULL, 0, 0);
 
     if (ret != BLE_STATUS_SUCCESS) {
-        PRINTF("aci_gap_set_discoverable failed: 0x%02x\n", ret);
+        PRINTF("aci_gap_set_discoverable failed: 0x%02x\r\n", ret);
     } else {
-        PRINTF("Advertising as HOME-%02X%02X\n", bdaddr[1], bdaddr[0]);
+        PRINTF("Advertising as HOME-%02X%02X\r\n", bdaddr[1], bdaddr[0]);
     }
 }
 
@@ -138,7 +138,7 @@ static void GAP_DisconnectionComplete_CB(void)
     connection_handle     = 0;
     notification_enabled  = FALSE;
     set_connectable       = TRUE;  /* re-enter advertising */
-    PRINTF("Disconnected\n");
+    PRINTF("Disconnected\r\n");
 }
 
 static void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle)
@@ -146,6 +146,6 @@ static void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle)
     connected         = TRUE;
     connection_handle = handle;
 
-    PRINTF("Connected to %02X:%02X:%02X:%02X:%02X:%02X\n",
+    PRINTF("Connected to %02X:%02X:%02X:%02X:%02X:%02X\r\n",
            addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
 }

@@ -29,7 +29,7 @@ void NotifyQueue_Init(void)
 {
     queue = osMessageQueueNew(QUEUE_LEN, sizeof(notify_msg_t), NULL);
     if (queue == NULL) {
-        PRINTF("NotifyQueue alloc failed\n");
+        PRINTF("NotifyQueue alloc failed\r\n");
     }
 }
 

@@ -90,7 +90,7 @@ void MX_BlueNRG_MS_Init(void)
   hci_reset();
   HAL_Delay(100);
 
-  PRINTF("HWver %d, FWver %d\n", hwVersion, fwVersion);
+  PRINTF("HWver %d, FWver %d\r\n", hwVersion, fwVersion);
   if (hwVersion > 0x30) {  /* X-NUCLEO-IDB05A1 / IDB05A2 */
     bnrg_expansion_board = IDB05A1;
   }
@@ -98,15 +98,15 @@ void MX_BlueNRG_MS_Init(void)
   ret = aci_hal_read_config_data(CONFIG_DATA_RANDOM_ADDRESS, BDADDR_SIZE,
                                  &bdaddr_len_out, bdaddr);
   if (ret) {
-    PRINTF("Read static random address failed.\n");
+    PRINTF("Read static random address failed.\r\n");
   }
   if ((bdaddr[5] & 0xC0) != 0xC0) {
-    PRINTF("Static random address not well formed.\n");
+    PRINTF("Static random address not well formed.\r\n");
     while (1);
   }
 
   ret = aci_gatt_init();
-  if (ret) PRINTF("aci_gatt_init failed.\n");
+  if (ret) PRINTF("aci_gatt_init failed.\r\n");
 
   if (bnrg_expansion_board == IDB05A1) {
     ret = aci_gap_init_IDB05A1(GAP_PERIPHERAL_ROLE_IDB05A1, 0, 0x0A,
@@ -117,7 +117,7 @@ void MX_BlueNRG_MS_Init(void)
                                &service_handle, &dev_name_char_handle,
                                &appearance_char_handle);
   }
-  if (ret != BLE_STATUS_SUCCESS) PRINTF("aci_gap_init failed.\n");
+  if (ret != BLE_STATUS_SUCCESS) PRINTF("aci_gap_init failed.\r\n");
   else
   /* Mirror the advertised local name into the standard GAP Device Name char. */
   {
@@ -126,26 +126,26 @@ void MX_BlueNRG_MS_Init(void)
                        "HOME-%02X%02X", bdaddr[1], bdaddr[0]);
     ret = aci_gatt_update_char_value(service_handle, dev_name_char_handle, 0,
                                      dn, (uint8_t *)dev_name);
-    if (ret) PRINTF("Device name update failed: 0x%02x\n", ret);
+    if (ret) PRINTF("Device name update failed: 0x%02x\r\n", ret);
   }
 
   /* Open BLE — no pairing / encryption for v1 (docs §13). */
 
-  PRINTF("BLE stack initialised.\n");
+  PRINTF("BLE stack initialised.\r\n");
 
   ret = Add_HomeSensor_Service();
   if (ret == BLE_STATUS_SUCCESS) {
-    PRINTF("Home Sensor Service added.\n");
+    PRINTF("Home Sensor Service added.\r\n");
   } else {
-    PRINTF("Add_HomeSensor_Service failed: 0x%02x\n", ret);
+    PRINTF("Add_HomeSensor_Service failed: 0x%02x\r\n", ret);
     while (1);
   }
 
   ret = Add_HomeControl_Service();
   if (ret == BLE_STATUS_SUCCESS) {
-    PRINTF("Home Control Service added.\n");
+    PRINTF("Home Control Service added.\r\n");
   } else {
-    PRINTF("Add_HomeControl_Service failed: 0x%02x\n", ret);
+    PRINTF("Add_HomeControl_Service failed: 0x%02x\r\n", ret);
     while (1);
   }
 

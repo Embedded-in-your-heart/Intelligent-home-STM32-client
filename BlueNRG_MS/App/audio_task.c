@@ -137,10 +137,10 @@ static void StartAudioTask(void *argument)
 
     if (HAL_DFSDM_FilterRegularStart_DMA(&hdfsdm1_filter0, dma_buf, DMA_BUF_LEN)
             != HAL_OK) {
-        PRINTF("DFSDM DMA start FAILED; AudioTask idle.\n");
+        PRINTF("DFSDM DMA start FAILED; AudioTask idle.\r\n");
         for (;;) osDelay(1000);
     }
-    PRINTF("AudioTask started (DFSDM + DMA interrupt, %u-sample window @ ~8 kHz).\n",
+    PRINTF("AudioTask started (DFSDM + DMA interrupt, %u-sample window @ ~8 kHz).\r\n",
            (unsigned)HALF_SAMPLES);
 
     /* LoudAlert state (preserved across iterations). */
@@ -163,7 +163,7 @@ static void StartAudioTask(void *argument)
     for (;;) {
         uint32_t flags = osThreadFlagsWait(FLAG_ANY, osFlagsWaitAny, WAIT_TIMEOUT_MS);
         if (flags & osFlagsError) {
-            PRINTF("[mic] TIMEOUT (no DMA half-complete)\n");
+            PRINTF("[mic] TIMEOUT (no DMA half-complete)\r\n");
             continue;
         }
 
@@ -196,14 +196,14 @@ static void StartAudioTask(void *argument)
                     loud_state = 1U;
                     NotifyQueue_PushU8(HOME_CHAR_LOUD_ALERT, 1U);
                     loud_lockout_until = now + LOUD_LOCKOUT_MS;
-                    PRINTF("[loud] ALERT (mic=%lu)\n", (unsigned long)mic_level);
+                    PRINTF("[loud] ALERT (mic=%lu)\r\n", (unsigned long)mic_level);
                 }
             } else {
                 loud_high_since = 0U;
                 if (loud_state == 1U && now >= loud_lockout_until) {
                     loud_state = 0U;
                     NotifyQueue_PushU8(HOME_CHAR_LOUD_ALERT, 0U);
-                    PRINTF("[loud] clear\n");
+                    PRINTF("[loud] clear\r\n");
                 }
             }
 
@@ -235,7 +235,7 @@ static void StartAudioTask(void *argument)
                     alarm_state = 1U;
                     NotifyQueue_PushU8(HOME_CHAR_ALARM_DETECTED, 1U);
                     alarm_lockout_until = now + ALARM_LOCKOUT_MS;
-                    PRINTF("[alarm] DETECTED (dba=%.1f class=%u)\n",
+                    PRINTF("[alarm] DETECTED (dba=%.1f class=%u)\r\n",
                            (double)res.dba, (unsigned)res.sound_class);
                 }
             } else {
@@ -247,13 +247,13 @@ static void StartAudioTask(void *argument)
                     alarm_state = 0U;
                     NotifyQueue_PushU8(HOME_CHAR_ALARM_DETECTED, 0U);
                     alarm_lockout_until = now + ALARM_LOCKOUT_MS;
-                    PRINTF("[alarm] clear\n");
+                    PRINTF("[alarm] clear\r\n");
                 }
             }
 
             /* Throttled debug print: extend to include dba and class. */
             if ((print_tick++ & 0x3U) == 0U) {
-                PRINTF("[mic] rms=%lu  lvl=%lu  dba=%.1f  class=%u\n",
+                PRINTF("[mic] rms=%lu  lvl=%lu  dba=%.1f  class=%u\r\n",
                        (unsigned long)rms, (unsigned long)mic_level,
                        (double)res.dba, (unsigned)res.sound_class);
             }

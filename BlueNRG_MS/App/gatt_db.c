@@ -256,10 +256,10 @@ void Attribute_Modified_CB(uint16_t handle, uint8_t length, uint8_t *data)
         HAL_GPIO_WritePin(LED1_PIN_GPIO_Port, LED1_PIN_Pin,
                           v ? GPIO_PIN_SET : GPIO_PIN_RESET);
         Home_Led1State_Update(v);
-        PRINTF("Write LED1State = %u\n", v);
+        PRINTF("Write LED1State = %u\r\n", v);
     } else if (handle == control_flag_char_handle + 1) {
         g_control_flag = data[0];
         Home_ControlFlag_Update(g_control_flag);
-        PRINTF("Write ControlFlag = 0x%02X\n", g_control_flag);
+        PRINTF("Write ControlFlag = 0x%02X\r\n", g_control_flag);
     }
 }
