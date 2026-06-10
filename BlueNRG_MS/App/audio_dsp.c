@@ -12,7 +12,8 @@
   *  ============
   *  1. Convert all 1600 raw samples to float (via >> 16).
   *  2. A-weighting biquad filter (3-stage cascade DF1) → weighted_buf[1600].
-  *  3. Weighted RMS → dBa via 20*log10f(max(rms,1.0)) + AUDIO_DBA_CAL_OFFSET.
+  *  3. Weighted RMS → dBa via 20*log10f(1 + rms) + AUDIO_DBA_CAL_OFFSET
+ *     (smooth above the offset; non-finite RMS rebuilds the filter state).
   *  4. FFT path: first 1024 samples × Hanning window → arm_rfft_fast_f32 →
   *     512 magnitude bins.
   *  5. Spectral feature extraction: E_total, peak_ratio (alarm band 2800–3600 Hz).
@@ -44,6 +45,7 @@
 
 #include <math.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "arm_math.h"
 
@@ -186,8 +188,23 @@ void AudioDsp_Process(const int32_t *raw, uint32_t n, AudioDspResult *out)
         sum_sq += weighted_buf[i] * weighted_buf[i];
     }
     float rms_weighted = sqrtf(sum_sq / (float)n);
-    out->dba = 20.0f * log10f((rms_weighted > 1.0f) ? rms_weighted : 1.0f)
-               + AUDIO_DBA_CAL_OFFSET;
+
+    /* A non-finite value would poison the IIR state forever (the recursion
+     * feeds back on itself), freezing dba at the calibration offset with no
+     * visible error. Rebuild the filter and report silence for this window. */
+    if (!isfinite(rms_weighted)) {
+        memset(aw_state, 0, sizeof(aw_state));
+        arm_biquad_cascade_df1_init_f32(&aw_inst, (uint8_t)AW_NUM_STAGES,
+                                        aw_coeffs, aw_state);
+        rms_weighted = 0.0f;
+    }
+
+    /* 1 + rms keeps log10f defined at silence and maps quiet smoothly above
+     * the offset instead of clipping everything below rms 1.0 to one flat
+     * line: a healthy-but-quiet room shows small variations just above the
+     * offset, while a dead capture path shows exactly OFFSET forever. */
+    out->rms_weighted = rms_weighted;
+    out->dba = 20.0f * log10f(1.0f + rms_weighted) + AUDIO_DBA_CAL_OFFSET;
 
     /* ------------------------------------------------------------------
      * 4. FFT path: window first 1024 samples and compute magnitude spectrum.

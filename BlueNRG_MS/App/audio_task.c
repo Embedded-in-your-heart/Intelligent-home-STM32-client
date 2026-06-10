@@ -244,9 +244,9 @@ static void StartAudioTask(void *argument)
 
             /* Throttled debug print (~1.25 Hz). */
             if ((print_tick++ & 0x3U) == 0U) {
-                PRINTF("[mic] rms=%lu  lvl=%lu  dba=%.1f\r\n",
+                PRINTF("[mic] rms=%lu  lvl=%lu  rmsw=%.1f  dba=%.1f\r\n",
                        (unsigned long)rms, (unsigned long)mic_level,
-                       (double)res.dba);
+                       (double)res.rms_weighted, (double)res.dba);
             }
         }
     }

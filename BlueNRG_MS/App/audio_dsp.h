@@ -31,6 +31,7 @@
  */
 typedef struct {
     float   dba;           /**< A-weighted level in dB (calibration-pending offset applied) */
+    float   rms_weighted;  /**< raw A-weighted RMS (MicLevel sample scale) — serial diagnostics */
     uint8_t is_alarm_tone; /**< 1 when a narrow-band alarm tone (2800–3600 Hz) is detected */
 } AudioDspResult;
 
