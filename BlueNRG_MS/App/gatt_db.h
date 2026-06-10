@@ -36,7 +36,6 @@ typedef enum {
   HOME_CHAR_LOUD_ALERT,
   HOME_CHAR_LED1_STATE,
   HOME_CHAR_CONTROL_FLAG,
-  HOME_CHAR_SOUND_CLASS,
   HOME_CHAR_ALARM_DETECTED,
   HOME_CHAR_MIC_DBA,
   HOME_CHAR_VIBRATION_RMS,
@@ -61,7 +60,6 @@ tBleStatus Home_MicLevel_Update(uint16_t level);
 tBleStatus Home_LoudAlert_Update(uint8_t flag);
 tBleStatus Home_Led1State_Update(uint8_t state);
 tBleStatus Home_ControlFlag_Update(uint8_t flag);
-tBleStatus Home_SoundClass_Update(uint8_t cls);
 tBleStatus Home_AlarmDetected_Update(uint8_t flag);
 tBleStatus Home_MicDBA_Update(float dba);
 tBleStatus Home_VibrationRMS_Update(float rms_mg);
