@@ -112,6 +112,20 @@ void NotifyQueue_Pump(void)
             Home_ControlFlag_Update(m.payload[0]);
             break;
 
+        case HOME_CHAR_SOUND_CLASS:
+            Home_SoundClass_Update(m.payload[0]);
+            break;
+
+        case HOME_CHAR_ALARM_DETECTED:
+            Home_AlarmDetected_Update(m.payload[0]);
+            break;
+
+        case HOME_CHAR_MIC_DBA: {
+            float v; memcpy(&v, m.payload, 4);
+            Home_MicDBA_Update(v);
+            break;
+        }
+
         default:
             /* Unknown id — drop silently. */
             break;

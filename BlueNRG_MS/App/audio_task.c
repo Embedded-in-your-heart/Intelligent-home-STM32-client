@@ -38,6 +38,7 @@
 #include "dfsdm.h"                   /* hdfsdm1_filter0 */
 #include "bluenrg_conf.h"            /* PRINTF */
 #include "notify_queue.h"
+#include "audio_dsp.h"               /* AudioDsp_Init, AudioDsp_Process */
 
 /* Circular DMA buffer: two halves, each a 200 ms window @ ~8 kHz.
  * A half-complete (HT) and full-complete (TC) event therefore arrives every
@@ -65,6 +66,11 @@
 #define LOUD_HOLD_MS        200U     /* must persist this long to assert     */
 #define LOUD_LOCKOUT_MS     1000U    /* min interval between state changes   */
 
+/* AlarmDetected debounce parameters (BLE contract). */
+#define ALARM_CONSEC_ON     3U       /* consecutive alarm windows to assert AlarmDetected=1 */
+#define ALARM_CONSEC_OFF    5U       /* consecutive non-alarm windows to de-assert */
+#define ALARM_LOCKOUT_MS    2000U    /* minimum ms between AlarmDetected state changes */
+
 /* DMA target buffer (BSS, zeroed at boot). Filled by DMA1_Channel4. */
 static int32_t dma_buf[DMA_BUF_LEN];
 
@@ -72,7 +78,7 @@ static int32_t dma_buf[DMA_BUF_LEN];
 static osThreadId_t audioTaskHandle;
 static const osThreadAttr_t audioTask_attributes = {
     .name       = "AudioTask",
-    .stack_size = 1024,
+    .stack_size = 1536,
     .priority   = (osPriority_t)osPriorityNormal,
 };
 
@@ -126,6 +132,9 @@ static void StartAudioTask(void *argument)
     /* Let BLE + SensorTask emit their boot logs first. */
     osDelay(700);
 
+    /* Initialise DSP module (Hanning table, FFT, biquad) before DMA starts. */
+    AudioDsp_Init();
+
     if (HAL_DFSDM_FilterRegularStart_DMA(&hdfsdm1_filter0, dma_buf, DMA_BUF_LEN)
             != HAL_OK) {
         PRINTF("DFSDM DMA start FAILED; AudioTask idle.\n");
@@ -138,6 +147,15 @@ static void StartAudioTask(void *argument)
     uint32_t loud_high_since    = 0U;
     uint32_t loud_lockout_until = 0U;
     uint8_t  loud_state         = 0U;
+
+    /* AlarmDetected state machine state. */
+    uint32_t alarm_consec_on     = 0U;   /* consecutive alarm-tone windows */
+    uint32_t alarm_consec_off    = 0U;   /* consecutive non-alarm windows  */
+    uint32_t alarm_lockout_until = 0U;   /* tick deadline for next change  */
+    uint8_t  alarm_state         = 0U;   /* current AlarmDetected value    */
+
+    /* Previous sound class — only notify BLE on change. */
+    uint8_t  prev_sound_class = 0xFFU;  /* 0xFF = uninitialised (force first push) */
 
     /* Throttle [mic] PRINTF to ~1.25 Hz (every 4th 200 ms window). */
     uint32_t print_tick = 0U;
@@ -189,9 +207,55 @@ static void StartAudioTask(void *argument)
                 }
             }
 
+            /* --- DSP: A-weighted level, sound class, alarm-tone detection --- */
+            AudioDspResult res;
+            AudioDsp_Process(buf, HALF_SAMPLES, &res);
+
+            /* Push MicDBA every window (always). */
+            NotifyQueue_PushFloat(HOME_CHAR_MIC_DBA, res.dba);
+
+            /* Push SoundClass only when the class changes. */
+            if (res.sound_class != prev_sound_class) {
+                NotifyQueue_PushU8(HOME_CHAR_SOUND_CLASS, res.sound_class);
+                prev_sound_class = res.sound_class;
+            }
+
+            /* AlarmDetected state machine (BLE contract):
+             *   - >= ALARM_CONSEC_ON  consecutive alarm windows  → assert 1
+             *   - >= ALARM_CONSEC_OFF consecutive non-alarm windows → assert 0
+             *   - 2 s lockout between any state transitions
+             * Mirrors the style of the LoudAlert block above. */
+            now = HAL_GetTick();   /* refresh tick after DSP processing */
+            if (res.is_alarm_tone) {
+                alarm_consec_on++;
+                alarm_consec_off = 0U;
+                if (alarm_state == 0U &&
+                    alarm_consec_on >= ALARM_CONSEC_ON &&
+                    now >= alarm_lockout_until) {
+                    alarm_state = 1U;
+                    NotifyQueue_PushU8(HOME_CHAR_ALARM_DETECTED, 1U);
+                    alarm_lockout_until = now + ALARM_LOCKOUT_MS;
+                    PRINTF("[alarm] DETECTED (dba=%.1f class=%u)\n",
+                           (double)res.dba, (unsigned)res.sound_class);
+                }
+            } else {
+                alarm_consec_off++;
+                alarm_consec_on = 0U;
+                if (alarm_state == 1U &&
+                    alarm_consec_off >= ALARM_CONSEC_OFF &&
+                    now >= alarm_lockout_until) {
+                    alarm_state = 0U;
+                    NotifyQueue_PushU8(HOME_CHAR_ALARM_DETECTED, 0U);
+                    alarm_lockout_until = now + ALARM_LOCKOUT_MS;
+                    PRINTF("[alarm] clear\n");
+                }
+            }
+
+            /* Throttled debug print: extend to include dba and class. */
             if ((print_tick++ & 0x3U) == 0U) {
-                PRINTF("[mic] rms=%lu  lvl=%lu\n",
-                       (unsigned long)rms, (unsigned long)mic_level);
+                PRINTF("[mic] rms=%lu  lvl=%lu  dba=%.1f  class=%u\n",
+                       (unsigned long)rms, (unsigned long)mic_level,
+                       (double)res.dba, (unsigned)res.sound_class);
             }
         }
     }

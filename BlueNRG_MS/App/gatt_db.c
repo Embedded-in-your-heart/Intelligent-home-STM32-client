@@ -41,6 +41,9 @@ do { \
 #define COPY_MOTION_ALERT_CHAR_UUID(u)    COPY_UUID_128(u, 0x1A,0x22,0x00,0x06, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
 #define COPY_MIC_LEVEL_CHAR_UUID(u)       COPY_UUID_128(u, 0x1A,0x22,0x00,0x07, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
 #define COPY_LOUD_ALERT_CHAR_UUID(u)      COPY_UUID_128(u, 0x1A,0x22,0x00,0x08, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
+#define COPY_SOUND_CLASS_CHAR_UUID(u)     COPY_UUID_128(u, 0x1A,0x22,0x00,0x09, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
+#define COPY_ALARM_DETECTED_CHAR_UUID(u)  COPY_UUID_128(u, 0x1A,0x22,0x00,0x0A, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
+#define COPY_MIC_DBA_CHAR_UUID(u)         COPY_UUID_128(u, 0x1A,0x22,0x00,0x0B, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
 
 /* Home Control Service ---- 1A22F001-... */
 #define COPY_HOME_CONTROL_SERVICE_UUID(u) COPY_UUID_128(u, 0x1A,0x22,0xF0,0x01, 0x8E,0x22, 0x45,0x41, 0x9D,0x4C, 0x21,0xED,0xAE,0x82,0xED,0x19)
@@ -56,6 +59,9 @@ static uint16_t gyro_mag_char_handle;
 static uint16_t motion_alert_char_handle;
 static uint16_t mic_level_char_handle;
 static uint16_t loud_alert_char_handle;
+static uint16_t sound_class_char_handle;
+static uint16_t alarm_detected_char_handle;
+static uint16_t mic_dba_char_handle;
 
 static uint16_t home_control_service_handle;
 static uint16_t led1_state_char_handle;
@@ -109,9 +115,9 @@ tBleStatus Add_HomeSensor_Service(void)
 
     COPY_HOME_SENSOR_SERVICE_UUID(u);
     memcpy(s.Service_UUID_128, u, 16);
-    /* 1 attribute for service + 3 per char (decl, value, CCC) × 7 chars. */
+    /* 1 attribute for service + 3 per char (decl, value, CCC) × 10 chars. */
     ret = aci_gatt_add_serv(UUID_TYPE_128, s.Service_UUID_128, PRIMARY_SERVICE,
-                            1 + 3 * 7, &home_sensor_service_handle);
+                            1 + 3 * 10, &home_sensor_service_handle);
     if (ret != BLE_STATUS_SUCCESS) return ret;
 
     /* Display chars: Read + Notify, no event mask (we cache values). */
@@ -144,6 +150,18 @@ tBleStatus Add_HomeSensor_Service(void)
 
     COPY_LOUD_ALERT_CHAR_UUID(u);
     ret = add_char(home_sensor_service_handle, u, 1, DISPLAY_PROPS, DISPLAY_EVTS, &loud_alert_char_handle);
+    if (ret != BLE_STATUS_SUCCESS) return ret;
+
+    COPY_SOUND_CLASS_CHAR_UUID(u);
+    ret = add_char(home_sensor_service_handle, u, 1, DISPLAY_PROPS, DISPLAY_EVTS, &sound_class_char_handle);
+    if (ret != BLE_STATUS_SUCCESS) return ret;
+
+    COPY_ALARM_DETECTED_CHAR_UUID(u);
+    ret = add_char(home_sensor_service_handle, u, 1, DISPLAY_PROPS, DISPLAY_EVTS, &alarm_detected_char_handle);
+    if (ret != BLE_STATUS_SUCCESS) return ret;
+
+    COPY_MIC_DBA_CHAR_UUID(u);
+    ret = add_char(home_sensor_service_handle, u, 4, DISPLAY_PROPS, DISPLAY_EVTS, &mic_dba_char_handle);
     if (ret != BLE_STATUS_SUCCESS) return ret;
 
     return BLE_STATUS_SUCCESS;
@@ -189,6 +207,9 @@ tBleStatus Home_MicLevel_Update(uint16_t l) { return update_u16(home_sensor_serv
 tBleStatus Home_LoudAlert_Update(uint8_t f) { return update_u8 (home_sensor_service_handle, loud_alert_char_handle,   f); }
 tBleStatus Home_Led1State_Update(uint8_t s) { return update_u8 (home_control_service_handle, led1_state_char_handle,  s); }
 tBleStatus Home_ControlFlag_Update(uint8_t f){ return update_u8(home_control_service_handle, control_flag_char_handle,f); }
+tBleStatus Home_SoundClass_Update(uint8_t c) { return update_u8   (home_sensor_service_handle, sound_class_char_handle,    c); }
+tBleStatus Home_AlarmDetected_Update(uint8_t f){ return update_u8 (home_sensor_service_handle, alarm_detected_char_handle, f); }
+tBleStatus Home_MicDBA_Update(float d)       { return update_float(home_sensor_service_handle, mic_dba_char_handle,        d); }
 
 /* Event callbacks -----------------------------------------------------------*/
 
