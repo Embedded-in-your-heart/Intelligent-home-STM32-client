@@ -64,3 +64,6 @@ site/
 *.tmp
 .claude/
 .qodo/
+
+# CMSIS-DSP prebuilt library is a vendored dependency, keep it tracked
+!Middlewares/ST/ARM/DSP/Lib/libarm_cortexM4lf_math.a
