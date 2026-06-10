@@ -126,6 +126,20 @@ void NotifyQueue_Pump(void)
             break;
         }
 
+        case HOME_CHAR_VIBRATION_RMS: {
+            float v; memcpy(&v, m.payload, 4);
+            Home_VibrationRMS_Update(v);
+            break;
+        }
+
+        case HOME_CHAR_VIBRATION_ALERT:
+            Home_VibrationAlert_Update(m.payload[0]);
+            break;
+
+        case HOME_CHAR_QUAKE_ALERT:
+            Home_QuakeAlert_Update(m.payload[0]);
+            break;
+
         default:
             /* Unknown id — drop silently. */
             break;
