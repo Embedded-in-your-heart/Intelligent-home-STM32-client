@@ -39,6 +39,9 @@ typedef enum {
   HOME_CHAR_SOUND_CLASS,
   HOME_CHAR_ALARM_DETECTED,
   HOME_CHAR_MIC_DBA,
+  HOME_CHAR_VIBRATION_RMS,
+  HOME_CHAR_VIBRATION_ALERT,
+  HOME_CHAR_QUAKE_ALERT,
 } HomeCharId;
 
 /* Service registration ------------------------------------------------------*/
@@ -61,6 +64,9 @@ tBleStatus Home_ControlFlag_Update(uint8_t flag);
 tBleStatus Home_SoundClass_Update(uint8_t cls);
 tBleStatus Home_AlarmDetected_Update(uint8_t flag);
 tBleStatus Home_MicDBA_Update(float dba);
+tBleStatus Home_VibrationRMS_Update(float rms_mg);
+tBleStatus Home_VibrationAlert_Update(uint8_t flag);
+tBleStatus Home_QuakeAlert_Update(uint8_t flag);
 
 /* GATT event callbacks (called from sensor.c::user_notify) ------------------*/
 void Read_Request_CB(uint16_t handle);
