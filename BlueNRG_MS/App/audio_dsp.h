@@ -1,15 +1,15 @@
 /**
   ******************************************************************************
   * @file    App/audio_dsp.h
-  * @brief   Audio DSP module: A-weighted dB level, FFT-based sound class, and
-  *          alarm-tone flag from a 200 ms DFSDM window.
+  * @brief   Audio DSP module: A-weighted dB level and alarm-tone detection
+  *          from a 200 ms DFSDM window.
   *
   *          The caller (audio_task.c) passes one 200 ms half of the circular
   *          DMA buffer (1600 int32_t samples at ~8 kHz).  On return the struct
   *          holds:
-  *            - dba:         A-weighted level in dBSPL (float, calibration-pending)
-  *            - sound_class: 0=quiet 1=speech 2=clap 3=alarm 4=other
-  *            - is_alarm_tone: 1 when class == 3 for this window
+  *            - dba:          A-weighted level in dBSPL (float, calibration-pending)
+  *            - is_alarm_tone: 1 when a narrow-band alarm tone (2800–3600 Hz) is
+  *                            detected in this window via FFT peak ratio, else 0
   *
   *          All thresholds / offsets marked "(calibration pending)" are guesses
   *          that should be measured against real room conditions before shipping.
@@ -21,13 +21,6 @@
 
 #include <stdint.h>
 
-/* Sound-class constants (BLE contract: SoundClass characteristic) ----------*/
-#define AUDIO_CLASS_QUIET   0U   /**< Essentially silent — MicLevel-scale rms < 50  */
-#define AUDIO_CLASS_SPEECH  1U   /**< Voice-dominated — mid-band energy fraction > 0.55  */
-#define AUDIO_CLASS_CLAP    2U   /**< Impulsive transient — sudden >4× RMS rise  */
-#define AUDIO_CLASS_ALARM   3U   /**< Narrow-band tone 2800–3600 Hz — peak_ratio > 0.30  */
-#define AUDIO_CLASS_OTHER   4U   /**< Does not match any above rule  */
-
 /* A-weighting dB calibration offset (additive, applied after 20*log10).
  * Default 30.0 dB is a rough estimate; measure against a calibrated SPL meter
  * and adjust AUDIO_DBA_CAL_OFFSET before shipping.  (calibration pending)    */
@@ -38,8 +31,7 @@
  */
 typedef struct {
     float   dba;           /**< A-weighted level in dB (calibration-pending offset applied) */
-    uint8_t sound_class;   /**< AUDIO_CLASS_* value for this window */
-    uint8_t is_alarm_tone; /**< 1 when sound_class == AUDIO_CLASS_ALARM, else 0 */
+    uint8_t is_alarm_tone; /**< 1 when a narrow-band alarm tone (2800–3600 Hz) is detected */
 } AudioDspResult;
 
 /**

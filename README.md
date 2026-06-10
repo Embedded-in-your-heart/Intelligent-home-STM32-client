@@ -34,7 +34,7 @@
 > 所有 UUID 為 128-bit，base = `xxxxxxxx-8E22-4541-9D4C-21EDAE82ED19`，前 4 byte 由各 Service / Characteristic 自帶。
 > 此表為**對外契約**，燒錄後保持穩定；任何欄位變更請同步更新 [STM32 Client 開發文件 §5.4](../docs/STM32%20Client%20開發文件.md) 與 RPi Server 對應頻道設定。
 
-### 3.1 Home Sensor Service
+### 3.1 Home Sensor Service（12 個 Characteristic）
 
 > Service UUID：**`1A220001-8E22-4541-9D4C-21EDAE82ED19`**
 
@@ -47,6 +47,11 @@
 | **MotionAlert** | `1A220006-…` | Read + Notify | `uint8` | `0`=normal / `1`=abnormal |
 | **MicLevel** | `1A220007-…` | Read + Notify | `uint16` (LE) | 0 – 1023 normalized energy |
 | **LoudAlert** | `1A220008-…` | Read + Notify | `uint8` | `0`=quiet / `1`=loud |
+| **AlarmDetected** | `1A22000A-…` | Read + Notify | `uint8` | `0`=normal / `1`=alarm tone detected |
+| **MicDBA** | `1A22000B-…` | Read + Notify | `float32` (LE) | dB(A)，A 加權聲壓級（校正待定） |
+| **VibrationRMS** | `1A22000C-…` | Read + Notify | `float32` (LE) | mg（RMS） |
+| **VibrationAlert** | `1A22000D-…` | Read + Notify | `uint8` | `0`=normal / `1`=vibration alert |
+| **QuakeAlert** | `1A22000E-…` | Read + Notify | `uint8` | `0`=normal / `1`=quake alert |
 
 ### 3.2 Home Control Service
 
@@ -246,7 +251,7 @@ cmake --build --preset Debug
   AudioTask started (DFSDM + DMA interrupt, 1600-sample window @ ~8 kHz).
   [imu] a=(0.01,0.00,1.00)g |a|=1.00  g=(0,0,0)dps |g|=0.0     ← 每秒
   [env] T=25.3C H=42.1%                                        ← 每秒
-  [mic] rms=2  lvl=16                                          ← 每秒
+  [mic] rms=2  lvl=16  dba=28.5                                ← 每秒
   Write LED1State = 1                                          ← 寫 char 才出
   [motion] ALERT (|a|=2.13 |g|=87)                             ← 搖晃時
   [loud] ALERT (mic=520)                                       ← 大聲時

@@ -112,10 +112,6 @@ void NotifyQueue_Pump(void)
             Home_ControlFlag_Update(m.payload[0]);
             break;
 
-        case HOME_CHAR_SOUND_CLASS:
-            Home_SoundClass_Update(m.payload[0]);
-            break;
-
         case HOME_CHAR_ALARM_DETECTED:
             Home_AlarmDetected_Update(m.payload[0]);
             break;

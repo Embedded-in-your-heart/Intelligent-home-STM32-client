@@ -154,9 +154,6 @@ static void StartAudioTask(void *argument)
     uint32_t alarm_lockout_until = 0U;   /* tick deadline for next change  */
     uint8_t  alarm_state         = 0U;   /* current AlarmDetected value    */
 
-    /* Previous sound class — only notify BLE on change. */
-    uint8_t  prev_sound_class = 0xFFU;  /* 0xFF = uninitialised (force first push) */
-
     /* Throttle [mic] PRINTF to ~1.25 Hz (every 4th 200 ms window). */
     uint32_t print_tick = 0U;
 
@@ -214,12 +211,6 @@ static void StartAudioTask(void *argument)
             /* Push MicDBA every window (always). */
             NotifyQueue_PushFloat(HOME_CHAR_MIC_DBA, res.dba);
 
-            /* Push SoundClass only when the class changes. */
-            if (res.sound_class != prev_sound_class) {
-                NotifyQueue_PushU8(HOME_CHAR_SOUND_CLASS, res.sound_class);
-                prev_sound_class = res.sound_class;
-            }
-
             /* AlarmDetected state machine (BLE contract):
              *   - >= ALARM_CONSEC_ON  consecutive alarm windows  → assert 1
              *   - >= ALARM_CONSEC_OFF consecutive non-alarm windows → assert 0
@@ -235,8 +226,8 @@ static void StartAudioTask(void *argument)
                     alarm_state = 1U;
                     NotifyQueue_PushU8(HOME_CHAR_ALARM_DETECTED, 1U);
                     alarm_lockout_until = now + ALARM_LOCKOUT_MS;
-                    PRINTF("[alarm] DETECTED (dba=%.1f class=%u)\r\n",
-                           (double)res.dba, (unsigned)res.sound_class);
+                    PRINTF("[alarm] DETECTED (dba=%.1f)\r\n",
+                           (double)res.dba);
                 }
             } else {
                 alarm_consec_off++;
@@ -251,11 +242,11 @@ static void StartAudioTask(void *argument)
                 }
             }
 
-            /* Throttled debug print: extend to include dba and class. */
+            /* Throttled debug print (~1.25 Hz). */
             if ((print_tick++ & 0x3U) == 0U) {
-                PRINTF("[mic] rms=%lu  lvl=%lu  dba=%.1f  class=%u\r\n",
+                PRINTF("[mic] rms=%lu  lvl=%lu  dba=%.1f\r\n",
                        (unsigned long)rms, (unsigned long)mic_level,
-                       (double)res.dba, (unsigned)res.sound_class);
+                       (double)res.dba);
             }
         }
     }
